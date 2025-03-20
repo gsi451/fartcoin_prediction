@@ -8,7 +8,8 @@ fartcoin 코인 데이터를 사용해서 LSTM 학습한 소스
 3. 코인 데이터를 학습을 하고 예측한 데이터를 실제 주식 차트에 그려보고 싶어서 구현해본 소스 입니다.
 4. 웹화면
    ![예측(그린)라인 표시](https://github.com/gsi451/fartcoin_prediction/blob/main/newplot.png)
-   화면 중간에 아주 작게 보이는 녹색 라인인데.. 표시가 잘 안보임
+   ![예측(그린)라인 표시](https://github.com/gsi451/fartcoin_prediction/blob/main/newplot_zoom.png)
+   - 웹 화면에서 왼쪽, 오른쪽 위치를 변경하면서 해당 위치마다 예측치가 어떻게 변하는지 볼 수 있다.
 6. 추가적으로 더 해볼만한 부분들
    - 여러 종류의 코인 데이터를 수집해서 학습에 적용해서 모델을 일반화 시켜보기
    - 예측한 데이터를 강화학습에 접목
