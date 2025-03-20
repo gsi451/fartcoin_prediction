@@ -1,0 +1,6 @@
+웹 서버 구동
+pip install flask pandas
+를 설치한다.
+
+실행
+python app.py

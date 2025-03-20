@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plotly Candlestick Chart</title>
+    <script src='https://cdn.plot.ly/plotly-3.0.0.min.js'></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.17/d3.min.js'></script>
+    <style>
+        body {
+            /*
+            display: flex;
+            justify-content: center;
+            align-items: start;
+            height: 100vh;
+            flex-direction: row;
+            */
+            margin: 0;
+        }
+        #myDiv {
+            width: 100%;
+            height: 80vh;
+            border: 1px solid #d8d8d8;
+        }
+    </style>
+    <script>
+        let trace_prediction = null;
+        let trace_predictionIndex = null;
+
+        function unpack(rows, key) {
+            return rows.map(function(row) {
+                return row[key];
+            });
+        }
+
+        function movingAverage(data, period) {
+            //console.log(data);
+            return data.map((val, idx, arr) => {
+                if (idx < period - 1) {
+                    return null;
+                }
+                let sum = 0;
+                for (let i = 0; i < period; i++) {
+                    //sum += arr[idx - i];
+                    sum += parseFloat(arr[idx - i]); // 숫자로 변환
+                }
+                return sum / period;
+            });
+        }
+
+        function updatePredictionTrace(predictionData, startIndex) {
+            // 기존 trace_prediction의 y 값을 복사 (deep copy)
+            //let updatedY = [...trace_prediction.y];
+
+            // 기존 trace_prediction의 y 값을 복사 (deep copy) 후 모든 값을 ""로 초기화
+            let updatedY = Array(trace_prediction.y.length).fill("");
+
+            // prediction 값 적용 (startIndex부터 predictionData 길이만큼 업데이트)
+            for (let i = 0; i < predictionData.length; i++) {
+                let targetIndex = startIndex + i;
+                if (targetIndex < updatedY.length) {
+                    updatedY[targetIndex] = predictionData[i];
+                }
+            }
+
+            // Plotly 차트 업데이트
+            Plotly.restyle('myDiv', { y: [updatedY] }, [trace_predictionIndex]);  // trace_predictionIndex는 trace의 인덱스
+        }
+
+        function fetchData() {
+            fetch('/get_data')
+                .then(response => response.json())
+                .then(rows => {
+                    console.log(rows);
+
+                    // 종가를 가져와서 이평선을 가공한다.
+                    var closePrices = unpack(rows, 'close');
+                    //console.log(closePrices);
+
+                    // 이평선 계산
+                    var ma5 = movingAverage(closePrices, 5);
+                    var ma20 = movingAverage(closePrices, 20);
+                    console.log(ma5.length);
+                    console.log(ma20.length);
+                    console.log(ma5);
+                    
+                    // 예측값 적용을 위한 임시 배열을 지정한다.
+                    //var prediction = new Array(closePrices.length).fill(closePrices[0]);
+                    var prediction = new Array(closePrices.length).fill("");
+
+                    // 이평선과 예측 부분을 배열에 담는다.
+                    rows.forEach((row, index) => {
+                        row.ma5 = ma5[index] !== null && ma5[index] !== undefined ? ma5[index].toString() : "";
+                        row.ma20 = ma20[index] !== null && ma20[index] !== undefined ? ma20[index].toString() : "";
+                        row.prediction = prediction[index].toString(); // prediction 값 추가
+                    });
+
+                    // 차트 그리기
+                    var dates = unpack(rows, 'Date');
+                    var startDate = dates[0];
+                    var endDate = dates[dates.length - 1];
+                    var range = [startDate, endDate];
+
+                    var trace = {
+                        x: dates,
+                        close: unpack(rows, 'close'),
+                        high: unpack(rows, 'high'),
+                        low: unpack(rows, 'low'),
+                        open: unpack(rows, 'open'),
+                        
+                        increasing: {line: {color: 'black'}},
+                        decreasing: {line: {color: 'red'}},
+                        
+                        type: 'candlestick',
+                        xaxis: 'x',
+                        yaxis: 'y'
+                    };
+
+                    var trace_ma5 = {
+                        x: dates,
+                        y: ma5,
+                        mode: 'lines',
+                        line: { color: 'blue', width: 1.5 },
+                        name: 'MA 5'
+                    };
+
+                    var trace_ma20 = {
+                        x: dates,
+                        y: ma20,
+                        mode: 'lines',
+                        line: { color: 'orange', width: 1.5 },
+                        name: 'MA 20'
+                    };
+
+                    trace_prediction = {
+                        x: dates,
+                        y: prediction,
+                        mode: 'lines',
+                        line: { color: 'green', width: 1.5 },
+                        name: 'Prediction'
+                    };
+
+                    var data = [trace, trace_ma5, trace_ma20, trace_prediction];
+
+                    //console.log(data);
+
+                    var layout = {
+                        dragmode: 'zoom',
+                        showlegend: false,
+                        xaxis: {
+                            title: { text: 'Date' },
+                            range: range
+                        },
+                        yaxis: { autorange: true }
+                    };
+
+                    Plotly.newPlot('myDiv', data, layout);
+
+                    // trace_prediction의 index 저장
+                    trace_predictionIndex = data.length - 1;
+                });
+        }
+
+        fetchData();
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            function moveData(direction) {
+                console.log(direction);
+                $.get(`/move/${direction}`, function (result) {
+                    // 서버에서 받은 새로운 index 값을 업데이트
+                    $("#currentIndex").text(result.index);
+
+                    //console.log(result);
+
+                    // `updatePredictionTrace` 함수 호출하여 prediction 데이터 적용
+                    updatePredictionTrace(result.prediction, result.index);
+                });
+            }
+
+            $("#prevBtn").click(function () {
+                moveData("prev");
+            });
+
+            $("#prevBtn10x").click(function () {
+                moveData("prev10x");
+            });
+
+            $("#prevBtn100x").click(function () {
+                moveData("prev100x");
+            });
+
+            $("#nextBtn").click(function () {
+                moveData("next");
+            });
+
+            $("#nextBtn10x").click(function () {
+                moveData("next10x");
+            });
+
+            $("#nextBtn100x").click(function () {
+                moveData("next100x");
+            });
+        });
+
+    </script>
+</head>
+<body>
+    <div>
+        <p>현재 인덱스: <span id="currentIndex">0</span></p>
+        <button id="prevBtn100x">Prev 100x</button>
+        <button id="prevBtn10x">Prev 10x</button>
+        <button id="prevBtn">Prev</button>
+        <button id="nextBtn">Next</button>
+        <button id="nextBtn10x">Next 10x</button>
+        <button id="nextBtn100x">Next 100x</button>
+    </div>
+    <div id='myDiv'></div>
+</body>
+</html>
